@@ -1,7 +1,5 @@
 #budowanie obrazu z scratch
-FROM scratch AS app_build
-
-ADD alpine-minirootfs-3.23.3-aarch64.tar /
+FROM alpine:3.23 AS app_build
 
 RUN apk update && \
     apk upgrade && \
