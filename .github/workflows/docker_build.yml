@@ -73,13 +73,17 @@ jobs:
           exit-code: '1'
           severity: CRITICAL,HIGH
           ignore-unfixed: true
+          platform: linux/amd64
+        env:
+          TRIVY_USERNAME: ${{ github.actor }}
+          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Delete image if CVE scan failed
         if: failure()
         run: |
-          echo "CVE scan failed — obraz zostanie usunięty z ghcr.io"
           gh api \
             --method DELETE \
-            /user/packages/container/aplikacja/versions/$(gh api /user/packages/container/aplikacja/versions | jq '.[0].id') \
+            /user/packages/container/aplikacja/versions/$(gh api /user/packages/container/aplikacja/versions | jq '.[0].id')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
