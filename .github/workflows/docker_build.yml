@@ -49,28 +49,7 @@ jobs:
           username: sabnaria
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build Docker image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: false
-          tags: ${{ steps.meta.outputs.tags }}
-          cache-from: type=registry,ref=sabnaria/aplikacja-cache:cache
-          cache-to: type=registry,ref=sabnaria/aplikacja-cache:cache,mode=max
-
-      - name: CVE scan (Trivy)
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ghcr.io/sabnaria/aplikacja:${{ steps.meta.outputs.version }}
-          format: table
-          exit-code: '1'
-          severity: CRITICAL,HIGH
-          ignore-unfixed: true
-
-      - name: Push to GHCR (only if CVE scan passed)
-        if: success()
+      - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -80,3 +59,31 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=registry,ref=sabnaria/aplikacja-cache:cache
           cache-to: type=registry,ref=sabnaria/aplikacja-cache:cache,mode=max
+
+      - name: Debug tags
+        run: |
+          echo "Tags: ${{ steps.meta.outputs.tags }}"
+          echo "Version: ${{ steps.meta.outputs.version }}"
+
+      - name: CVE scan (Trivy)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ghcr.io/sabnaria/aplikacja:${{ steps.meta.outputs.version }}
+          format: table
+          exit-code: '1'
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          platform: linux/amd64
+        env:
+          TRIVY_USERNAME: ${{ github.actor }}
+          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Delete image if CVE scan failed
+        if: failure()
+        run: |
+          gh api \
+            --method DELETE \
+            /user/packages/container/aplikacja/versions/$(gh api /user/packages/container/aplikacja/versions | jq '.[0].id')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
