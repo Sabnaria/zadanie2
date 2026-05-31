@@ -49,16 +49,21 @@ jobs:
           username: sabnaria
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build Docker image
+      - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
           platforms: linux/amd64,linux/arm64
-          push: false
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=registry,ref=sabnaria/aplikacja-cache:cache
           cache-to: type=registry,ref=sabnaria/aplikacja-cache:cache,mode=max
+
+      - name: Debug tags
+        run: |
+          echo "Tags: ${{ steps.meta.outputs.tags }}"
+          echo "Version: ${{ steps.meta.outputs.version }}"
 
       - name: CVE scan (Trivy)
         uses: aquasecurity/trivy-action@master
@@ -69,14 +74,12 @@ jobs:
           severity: CRITICAL,HIGH
           ignore-unfixed: true
 
-      - name: Push to GHCR (only if CVE scan passed)
-        if: success()
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          cache-from: type=registry,ref=sabnaria/aplikacja-cache:cache
-          cache-to: type=registry,ref=sabnaria/aplikacja-cache:cache,mode=max
+      - name: Delete image if CVE scan failed
+        if: failure()
+        run: |
+          echo "CVE scan failed — obraz zostanie usunięty z ghcr.io"
+          gh api \
+            --method DELETE \
+            /user/packages/container/aplikacja/versions/$(gh api /user/packages/container/aplikacja/versions | jq '.[0].id') \
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
